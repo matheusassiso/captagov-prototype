@@ -49,9 +49,16 @@ python app.py            # ou sobe o servidor em http://127.0.0.1:5000
   editar `CIDADES_MS` em `data_fetch.py` (buscar a malha da UF nova em
   `servicodados.ibge.gov.br/api/v3/malhas/estados/{UF}?formato=application/vnd.geo+json&intrarregiao=municipio`
   e recalcular).
-- O painel (`docs/index.html`) carrega Chart.js e Leaflet de CDN — o *dado* já
-  vem embutido no arquivo (sem fetch), mas o mapa e os gráficos só desenham
-  com internet na primeira carga da página.
+- O painel (`docs/index.html`) carrega Chart.js de CDN — o *dado* e a malha do
+  mapa (SVG, sem Leaflet/tile externo) já vêm embutidos no arquivo, só o gráfico
+  depende de internet na primeira carga da página.
+- Gráfico com mais de 10 itens mostra só o top 10 por padrão; "ver todas"
+  expande pra barra horizontal com rolagem própria e o valor escrito direto
+  do lado de cada barra (não dá pra "grudar" só o eixo numa caixa que rola —
+  canvas é um desenho só — então o valor viaja junto com a barra).
+- Mapa é SVG estático com a malha real dos municípios (IBGE, qualidade mínima
+  pra ficar leve), colorido por valor captado ou por oportunidade aberta
+  (toggle no card) — sem pan/zoom, sem tile do OpenStreetMap.
 - Requisitos/anexos/janela real de captação e o link "edital" vêm de um
   segundo endpoint público: `parcerias.transferegov.sistema.gov.br/ep/api/atos-prep/programa/{id}`
   (o mesmo que o portal usa, sem login). Programa recente (cadastrado via

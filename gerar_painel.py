@@ -2,19 +2,75 @@
 
 Mesmo padrão do atf-georadar: roda uma vez, gera um HTML que abre por
 duplo-clique (sem Flask, sem porta, sem instalar nada pra quem só quer ver).
-Chart.js + Leaflet vêm de CDN (precisa de internet pra carregar essas libs e
-os tiles do mapa; o DADO em si já vem embutido, sem fetch nenhum).
+Chart.js vem de CDN (precisa de internet pra carregar essa lib; o DADO e a
+malha do mapa em si já vêm embutidos, sem fetch nenhum em tempo de uso).
 
 Rodar: python gerar_painel.py
 """
 import json
+import math
 from datetime import date
 from pathlib import Path
+
+import requests
 
 import data_fetch as df
 
 ROOT = Path(__file__).parent
 OUT = ROOT / "docs" / "index.html"
+
+MALHA_URL = ("https://servicodados.ibge.gov.br/api/v3/malhas/estados/50"
+             "?formato=application/vnd.geo+json&intrarregiao=municipio&qualidade=minima")
+MAPA_LARGURA = 760
+
+
+def montar_svg_mapa() -> tuple[str, int, int]:
+    """Baixa a malha municipal do MS (IBGE, cacheada) e gera <path> SVG por
+    município, projetado com correção de latitude (equiretangular simples —
+    suficiente pra um estado do tamanho do MS, não precisa de projeção cônica).
+    """
+    cache_file = df.CACHE_DIR / "malha_ms.json"
+    if cache_file.exists():
+        malha = json.loads(cache_file.read_text(encoding="utf-8"))
+    else:
+        resp = requests.get(MALHA_URL, timeout=30)
+        resp.raise_for_status()
+        malha = resp.json()
+        df.CACHE_DIR.mkdir(exist_ok=True)
+        cache_file.write_text(json.dumps(malha), encoding="utf-8")
+
+    lons, lats = [], []
+    for f in malha["features"]:
+        geom = f["geometry"]
+        poligonos = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+        for pol in poligonos:
+            for anel in pol:
+                for lon, lat in anel:
+                    lons.append(lon); lats.append(lat)
+
+    lon_min, lon_max = min(lons), max(lons)
+    lat_min, lat_max = min(lats), max(lats)
+    corr = math.cos(math.radians((lat_min + lat_max) / 2))
+    escala = MAPA_LARGURA / ((lon_max - lon_min) * corr)
+    altura = round((lat_max - lat_min) * escala)
+
+    def proj(lon, lat):
+        x = (lon - lon_min) * corr * escala
+        y = (lat_max - lat) * escala
+        return f"{x:.1f},{y:.1f}"
+
+    paths = []
+    for f in malha["features"]:
+        codarea = f["properties"]["codarea"]
+        geom = f["geometry"]
+        poligonos = geom["coordinates"] if geom["type"] == "MultiPolygon" else [geom["coordinates"]]
+        d = []
+        for pol in poligonos:
+            for anel in pol:
+                d.append("M" + "L".join(proj(lon, lat) for lon, lat in anel) + "Z")
+        paths.append(f'<path data-ibge="{codarea}" d="{"".join(d)}"></path>')
+
+    return "\n".join(paths), MAPA_LARGURA, altura
 
 
 def montar_dados() -> dict:
@@ -86,8 +142,6 @@ TEMPLATE = r"""<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CaptaGov — Oportunidade de repasse federal (MS)</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 /* Paleta base — dourado (padrão), alinhada ao mesmo padrão CityPro/FLORA:
@@ -140,7 +194,13 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem 2rem 3rem}
   padding:.3rem .8rem;font-size:.75rem;cursor:pointer;flex:none}
 .btn-ver:hover{border-color:var(--accent)}
 .chart-scroll{overflow-y:auto;overflow-x:hidden}
-#mapa{height:340px;border-radius:12px}
+.mapa-toggle{display:flex;gap:.4rem}
+.mapa-toggle .btn-ver.on{background:var(--accent);color:var(--on-accent);border-color:transparent}
+#svgMapa{width:100%;height:auto;display:block}
+#svgMapa path{stroke:var(--bg);stroke-width:1;cursor:pointer;transition:opacity .15s}
+#svgMapa path:hover{opacity:.75}
+#svgMapa text.rotulo{fill:var(--text);font-size:9px;font-weight:700;text-anchor:middle;
+  pointer-events:none;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
 table{width:100%;border-collapse:collapse;font-size:.85rem}
 th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--border)}
 th{color:var(--muted);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
@@ -214,8 +274,16 @@ footer{max-width:1200px;margin:2rem auto;padding:0 2rem 2rem;color:var(--muted);
   </div>
 
   <div class="card" style="margin-bottom:1.5rem">
-    <h3>Mapa — tamanho do círculo = oportunidade aberta não usada</h3>
-    <div id="mapa"></div>
+    <div class="card-head">
+      <h3>Mapa — cor por <span id="mapaTituloMetrica">valor histórico captado</span></h3>
+      <div class="mapa-toggle">
+        <button class="btn-ver on" data-metrica="valor" onclick="alternarMapa('valor')">Valor captado</button>
+        <button class="btn-ver" data-metrica="abertas" onclick="alternarMapa('abertas')">Oportunidade aberta</button>
+      </div>
+    </div>
+    <svg id="svgMapa" viewBox="0 0 __MAPA_LARGURA__ __MAPA_ALTURA__">
+__SVG_PATHS__
+    </svg>
   </div>
 
   <div class="card" style="margin-bottom:1.5rem">
@@ -251,6 +319,7 @@ footer{max-width:1200px;margin:2rem auto;padding:0 2rem 2rem;color:var(--muted);
 </div>
 
 <script>
+Chart.defaults.animation = false; // sem animação de entrada — pinta na hora, não depende de requestAnimationFrame
 const DATA = __DADOS_JSON__;
 let filtro = {cidade:"", orgao:"", busca:""};
 
@@ -260,7 +329,7 @@ function aplicarTema(t){
   document.documentElement.dataset.theme = t;
   try{ localStorage.setItem("captagov_tema", t); }catch(e){}
   document.querySelectorAll("#temas button").forEach(b=>b.classList.toggle("on", b.dataset.tema===t));
-  renderCharts(); renderMapa(); // cores dependem do tema, Canvas/Leaflet não leem var(--accent) sozinhos
+  renderCharts(); renderMapa(); // cores dependem do tema, Canvas/SVG não leem var(--accent) sozinhos
 }
 document.querySelectorAll("#temas button").forEach(b=>b.onclick=()=>aplicarTema(b.dataset.tema));
 
@@ -301,13 +370,48 @@ function corTema(nomeVar){
   return getComputedStyle(document.documentElement).getPropertyValue(nomeVar).trim();
 }
 
+// Barra horizontal expandida rola dentro de uma caixa curta — o eixo de valor (embaixo do
+// canvas inteiro) só apareceria depois de rolar tudo até o fim. Em vez de tentar deixar o
+// eixo "grudado" (canvas é um desenho só, não dá pra fixar só um pedaço), desenha o valor
+// direto do lado de cada barra — sempre visível junto da barra, não depende de rolar até o eixo.
+//
+// ponytail: nada disso passa pelo sistema de plugin do Chart.js (Chart.register) — QUALQUER
+// leitura de chart.options.plugins.<id> (mesmo dentro do próprio Chart.js resolvendo as
+// options do hook antes de chamar) lança "Cannot convert object to primitive value" pra um
+// plugin não-nativo, e a lib engole essa exceção sozinha — o hook nunca roda, sem erro
+// nenhum no console. Mais simples e confiável: desenha direto por cima logo depois que o
+// gráfico é criado, e de novo se ele for redimensionado (onResize é uma option normal,
+// não passa por options.plugins, não tem esse problema).
+const FORMATOS_ROTULO = {
+  moeda: v => "R$"+(v/1e6).toFixed(0)+"M",
+  numero: v => v,
+};
+function desenharRotulosBarra(chart, tipoRotulo){
+  const fmt = FORMATOS_ROTULO[tipoRotulo];
+  if(!fmt) return;
+  const {ctx} = chart;
+  ctx.save();
+  ctx.fillStyle = corTema("--text");
+  ctx.font = "11px -apple-system,Segoe UI,sans-serif";
+  ctx.textBaseline = "middle";
+  chart.getDatasetMeta(0).data.forEach((barra,i)=>{
+    ctx.fillText(fmt(chart.data.datasets[0].data[i]), barra.x+6, barra.y);
+  });
+  ctx.restore();
+}
+
 let charts = {};
-function grafico(id,cfg){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),cfg); }
+function grafico(id,cfg,tipoRotulo){
+  if(charts[id]) charts[id].destroy();
+  if(tipoRotulo) cfg.options.onResize = c => desenharRotulosBarra(c, tipoRotulo);
+  charts[id]=new Chart(document.getElementById(id),cfg);
+  if(tipoRotulo) desenharRotulosBarra(charts[id], tipoRotulo);
+}
 
 let chartState = {valor:false, abertas:false}; // false = top 10 (colunas), true = todas (barra horizontal, com rolagem)
 function alternarChart(qual){ chartState[qual] = !chartState[qual]; renderCharts(); }
 
-function desenharChart(canvasId, wrapId, innerId, btnId, expandido, ordenado, valorFn, cor, fmtEixo){
+function desenharChart(canvasId, wrapId, innerId, btnId, expandido, ordenado, valorFn, cor, fmtEixo, tipoRotulo){
   const muted = corTema("--muted");
   const lista = expandido ? ordenado : ordenado.slice(0,10);
   const wrap = document.getElementById(wrapId), inner = document.getElementById(innerId);
@@ -322,9 +426,10 @@ function desenharChart(canvasId, wrapId, innerId, btnId, expandido, ordenado, va
     grafico(canvasId,{type:"bar",data:{labels:lista.map(c=>c.nome),
       datasets:[{data:lista.map(valorFn),backgroundColor:cor}]},
       options:{indexAxis:"y",maintainAspectRatio:false,
+        layout:{padding:{right:60}},
         plugins:{legend:{display:false}},
         scales:{x:{ticks:{color:muted,callback:fmtEixo}},
-          y:{ticks:{color:muted,autoSkip:false}}}}});
+          y:{ticks:{color:muted,autoSkip:false}}}}}, tipoRotulo);
   }else{
     wrap.style.height = "260px";
     inner.style.height = "260px";
@@ -340,26 +445,63 @@ function renderCharts(){
   const accent = corTema("--accent"), accent2 = corTema("--accent2");
   desenharChart("chartValor","wrapValor","innerValor","btnVerValor",chartState.valor,
     DATA.cidades.slice().sort((a,b)=>b.valorTotal-a.valorTotal),
-    c=>c.valorTotal, accent, v=>"R$"+(v/1e6).toFixed(0)+"M");
+    c=>c.valorTotal, accent, v=>"R$"+(v/1e6).toFixed(0)+"M", "moeda");
   desenharChart("chartAbertas","wrapAbertas","innerAbertas","btnVerAbertas",chartState.abertas,
     DATA.cidades.slice().sort((a,b)=>b.nAbertas-a.nAbertas),
-    c=>c.nAbertas, accent2, v=>v);
+    c=>c.nAbertas, accent2, v=>v, "numero");
 }
 
-let map, marcadores=[];
+function hexParaRgb(hex){
+  hex = hex.replace("#","");
+  if(hex.length===3) hex = hex.split("").map(c=>c+c).join("");
+  const n = parseInt(hex,16);
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+function misturarCor(hexA,hexB,t){
+  const a=hexParaRgb(hexA), b=hexParaRgb(hexB);
+  const m = a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+  return `rgb(${m[0]},${m[1]},${m[2]})`;
+}
+
+let mapaMetrica = "valor"; // "valor" ou "abertas"
+function alternarMapa(m){
+  mapaMetrica = m;
+  document.querySelectorAll(".mapa-toggle button").forEach(b=>b.classList.toggle("on", b.dataset.metrica===m));
+  document.getElementById("mapaTituloMetrica").textContent =
+    m==="valor" ? "valor histórico captado" : "oportunidade aberta não usada";
+  renderMapa();
+}
+
 function renderMapa(){
-  const accent = corTema("--accent");
-  if(!map){
-    map = L.map("mapa").setView([-20.7,-54.9],6);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
-  }
-  marcadores.forEach(m=>map.removeLayer(m)); marcadores=[];
-  DATA.cidades.forEach(c=>{
-    const r = 6 + Math.sqrt(c.nAbertas)*5;
-    const m = L.circleMarker([c.lat,c.lon],{radius:r,color:accent,fillColor:accent,fillOpacity:.5})
-      .addTo(map).bindPopup(`<b>${c.nome}</b><br>${c.nAbertas} oportunidade(s) aberta(s)<br>${fmtBRL(c.valorTotal)} captado historicamente`);
-    m.on("click",()=>{document.getElementById("fCidade").value=c.ibge; filtro.cidade=String(c.ibge); render();});
-    marcadores.push(m);
+  const svg = document.getElementById("svgMapa");
+  const panel2 = corTema("--panel2"), accent = corTema("--accent");
+  const porIbge = {}; DATA.cidades.forEach(c=>porIbge[c.ibge]=c);
+  const valorDe = c => mapaMetrica==="valor" ? c.valorTotal : c.nAbertas;
+  const max = Math.max(...DATA.cidades.map(valorDe), 1);
+
+  svg.querySelectorAll("path").forEach(p=>{
+    const c = porIbge[p.dataset.ibge];
+    const v = c ? valorDe(c) : 0;
+    const t = Math.sqrt(v/max); // raiz quadrada realça diferença entre cidade pequena e Campo Grande
+    p.setAttribute("fill", misturarCor(panel2, accent, t));
+    p.onclick = c ? ()=>{ document.getElementById("fCidade").value=c.ibge; filtro.cidade=String(c.ibge); render(); } : null;
+    let title = p.querySelector("title");
+    if(!title){ title = document.createElementNS("http://www.w3.org/2000/svg","title"); p.appendChild(title); }
+    title.textContent = c ? `${c.nome}: ${mapaMetrica==="valor"?fmtBRL(c.valorTotal):c.nAbertas+" oportunidade(s) aberta(s)"}` : "";
+  });
+
+  svg.querySelectorAll("text.rotulo").forEach(t=>t.remove());
+  const top10 = DATA.cidades.slice().sort((a,b)=>valorDe(b)-valorDe(a)).slice(0,10);
+  top10.forEach(c=>{
+    const path = svg.querySelector(`path[data-ibge="${c.ibge}"]`);
+    if(!path) return;
+    const bbox = path.getBBox();
+    const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+    t.setAttribute("class","rotulo");
+    t.setAttribute("x", bbox.x+bbox.width/2);
+    t.setAttribute("y", bbox.y+bbox.height/2);
+    t.textContent = mapaMetrica==="valor" ? "R$"+(c.valorTotal/1e6).toFixed(0)+"M" : c.nAbertas;
+    svg.appendChild(t);
   });
 }
 
@@ -425,7 +567,13 @@ render();
 def gerar():
     dados = montar_dados()
     dados_json = json.dumps(dados, ensure_ascii=False).replace("</script>", "<\\/script>")
-    html = TEMPLATE.replace("__DADOS_JSON__", dados_json).replace("__GERADO_EM__", dados["geradoEm"])
+    svg_paths, largura, altura = montar_svg_mapa()
+    html = (TEMPLATE
+            .replace("__DADOS_JSON__", dados_json)
+            .replace("__GERADO_EM__", dados["geradoEm"])
+            .replace("__SVG_PATHS__", svg_paths)
+            .replace("__MAPA_LARGURA__", str(largura))
+            .replace("__MAPA_ALTURA__", str(altura)))
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(html, encoding="utf-8")
     print(f"painel: {OUT} | {len(dados['cidades'])} cidades | {len(dados['oportunidades'])} oportunidades | "
