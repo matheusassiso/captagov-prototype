@@ -1,11 +1,15 @@
 # CaptaGov (protótipo)
 
+## ➡️ [ABRIR O PAINEL](https://matheusassiso.github.io/captagov-prototype/) ⬅️
+
 Cruza programa de repasse federal aberto (API pública Transferegov, ex-SICONV)
 com o histórico de captação de cada uma das 10 maiores cidades do MS —
 mostra qual oportunidade a prefeitura ainda não usou, e gera uma minuta de
 plano de trabalho de partida.
 
-Dado real, sem chave de API.
+Dado real, sem chave de API. Repositório privado, painel publicado (link acima
+funciona sem login — mesmo esquema do atf-georadar). Pra atualizar o link com
+dado novo: `python gerar_painel.py` e `git push`.
 
 ## Rodar
 
