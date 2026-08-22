@@ -123,7 +123,7 @@ tr:hover td{background:var(--panel2)}
 .acao{color:var(--accent);cursor:pointer;background:none;border:none;font-size:.85rem;padding:0}
 .acao:hover{text-decoration:underline}
 footer{max-width:1200px;margin:2rem auto;padding:0 2rem 2rem;color:var(--muted);font-size:.78rem}
-.modal{display:none;position:fixed;inset:0;background:#000c;z-index:50;align-items:center;justify-content:center;padding:1.5rem}
+.modal{display:none;position:fixed;inset:0;background:#000c;z-index:9999;align-items:center;justify-content:center;padding:1.5rem}
 .modal.on{display:flex}
 .modal-box{background:var(--panel);border:1px solid var(--border);border-radius:10px;max-width:700px;
   width:100%;max-height:85vh;overflow:auto;padding:1.5rem}
