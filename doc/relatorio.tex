@@ -1,0 +1,338 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[brazil]{babel}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{xcolor}
+\definecolor{captagov}{HTML}{B8791E}
+\definecolor{captagovdark}{HTML}{7A5013}
+\usepackage[colorlinks=true,linkcolor=captagovdark,urlcolor=captagovdark,citecolor=captagovdark]{hyperref}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{fancyhdr}
+
+\titleformat{\section}{\normalfont\Large\bfseries\color{captagovdark}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries\color{captagovdark}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection}{0.6em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\small CaptaGov --- Relatório Técnico e Roadmap}
+\fancyhead[R]{\small \thepage}
+
+\newcommand{\codigo}[1]{\texttt{\small #1}}
+
+\title{\textbf{\color{captagov}CaptaGov}\\[0.3em]\Large Relatório Técnico e Roadmap}
+\author{Matheus Assis de Oliveira}
+\date{22 de agosto de 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent Este documento descreve o estado técnico atual do protótipo \textbf{CaptaGov} --- uma
+ferramenta que cruza programa de repasse federal aberto com o histórico de captação de cada
+município, apontando oportunidade não usada --- e propõe quatro extensões técnicas para
+evoluir a ferramenta dentro de uma família maior de produtos voltados à gestão pública
+estadual e municipal (que já inclui \textbf{CityPro}, para licenciamento urbano, e
+\textbf{FLORA}, para governança ambiental).
+\end{abstract}
+
+\section{Contexto}
+
+O CaptaGov nasceu de uma pergunta em aberto: quais ferramentas fariam sentido para atender
+estados e prefeituras. Duas referências de mercado já existentes nesse espaço foram
+usadas como ponto de partida:
+
+\begin{itemize}
+  \item \textbf{CityPro} --- plataforma de licenciamento urbano com leitura automatizada de
+    projeto via BIM, focada em reduzir o tempo de aprovação de obra.
+  \item \textbf{FLORA} --- plataforma de gestão ambiental pública, integrando licenciamento
+    ambiental, fiscalização, monitoramento territorial e atendimento a denúncia.
+\end{itemize}
+
+Ambas resolvem o lado da \emph{regulação} (aprovar, fiscalizar, licenciar). Nenhuma delas
+ataca o lado da \emph{captação de recurso} --- e é exatamente aí que a maioria dos municípios
+pequenos brasileiros mais perde dinheiro: falta de corpo técnico para monitorar edital e
+programa de repasse federal aberto, e falta de visibilidade sobre o que já foi captado. O
+CaptaGov nasce para preencher essa lacuna, como terceiro pilar de uma mesma família de
+produtos.
+
+\section{CaptaGov --- Visão Geral}
+
+\subsection{O problema}
+
+Prefeituras de pequeno e médio porte raramente têm equipe dedicada a monitorar oportunidade
+de captação de recurso federal. O resultado é previsível: programa de repasse fica aberto por
+meses, elegível para aquele município, e ninguém submete proposta a tempo --- dinheiro que
+ficou disponível e não foi buscado.
+
+\subsection{A proposta de valor}
+
+O CaptaGov automatiza três passos que hoje são feitos manualmente (quando são feitos):
+
+\begin{enumerate}
+  \item \textbf{Descobrir} quais programas de repasse federal estão abertos agora para
+    candidatura direta (sem depender de indicação de parlamentar).
+  \item \textbf{Cruzar} essa lista com o histórico de captação de cada município, calculando
+    o \emph{gap}: programa que o município é elegível e ainda não usou.
+  \item \textbf{Gerar} um rascunho de plano de trabalho de partida, já preenchido com os
+    campos oficiais do programa (objetivo, problema, público-alvo, resultado esperado,
+    condicionantes, documentos exigidos).
+\end{enumerate}
+
+\section{Arquitetura Técnica}
+
+\subsection{Fontes de dado}
+
+Todo o dado do CaptaGov vem de \textbf{APIs públicas do governo federal, sem autenticação e
+sem custo}. Duas fontes distintas são combinadas:
+
+\begin{description}[leftmargin=1.2cm,style=nextline]
+  \item[API de dados abertos] \codigo{api-publica.transferegov.gestao.gov.br/parcerias} ---
+    módulo ``Parcerias'' do Transferegov.br (sucessor do SICONV). Expõe os endpoints
+    \codigo{/programa} (programa de repasse cadastrado, com situação, tipo de beneficiário,
+    objetivo, problema, público-alvo) e \codigo{/proposta} (proposta já enviada por um
+    município, com valor e situação). Filtra por \codigo{cd\_ibge\_recebedor} (código IBGE do
+    município).
+  \item[Portal do Transferegov (detalhe rico)] \codigo{parcerias.transferegov.sistema.gov.br}
+    --- o mesmo sistema que os servidores públicos usam para gerir os programas. Por trás da
+    interface web existe uma API JSON pública (sem login),
+    \codigo{/ep/api/atos-prep/programa/\{id\}}, que expõe campos não disponíveis na API de
+    dados abertos: requisitos e condicionantes para recepção de recurso, documentos e anexos
+    do programa (ex.\ portaria, resolução), e a janela real de captação
+    (\codigo{dtaInicioRecebPropEspfic} / \codigo{dtaFimRecebPropEspfic}). O mesmo \codigo{id}
+    de programa vale nas duas APIs, o que permite cruzar os dois sem trabalho extra.
+  \item[IBGE] Lista de municípios e código IBGE via
+    \codigo{servicodados.ibge.gov.br/api/v1/localidades}; coordenadas de cada município
+    calculadas a partir da malha municipal
+    (\codigo{.../api/v3/malhas/estados/\{uf\}?intrarregiao=municipio}), tomando a média dos
+    vértices do polígono como centroide aproximado --- suficiente para posicionar um marcador
+    no mapa, sem precisar de geocoding cidade a cidade.
+\end{description}
+
+\subsection{Pipeline de dados}
+
+O módulo \codigo{data\_fetch.py} concentra toda a lógica de acesso a dado:
+
+\begin{itemize}
+  \item \textbf{Cache local em disco}, com \emph{time-to-live} de 24 horas por arquivo JSON
+    --- dado de governo não muda a cada minuto, e isso evita bater a API repetidamente durante
+    desenvolvimento ou geração do painel.
+  \item \codigo{get\_programas\_abertos()} --- filtra os programas com situação
+    \emph{Disponibilizado} e qualificação de beneficiário \emph{Espontâneo} ou
+    \emph{Específico} (ou seja, candidatura direta, sem depender de indicação de emenda
+    parlamentar).
+  \item \codigo{get\_propostas\_municipio(cd\_ibge)} --- histórico de propostas já enviadas
+    por um município.
+  \item \codigo{calcular\_gap(...)} --- programa aberto que o município ainda não tem proposta
+    vinculada.
+  \item \codigo{get\_programa\_detalhe(id\_programa)} --- busca o detalhe rico no portal
+    (requisitos, anexos, janela de captação real), com o mesmo padrão de cache.
+  \item \codigo{gerar\_minuta(...)} --- monta o rascunho de plano de trabalho combinando os
+    campos das duas fontes.
+\end{itemize}
+
+\subsection{Duas superfícies de entrega}
+
+O mesmo pipeline de dado alimenta duas formas de uso, propositalmente distintas:
+
+\begin{enumerate}
+  \item \textbf{Painel estático autocontido} (\codigo{gerar\_painel.py}
+    $\rightarrow$ \codigo{docs/index.html}) --- roda uma vez, embute todo o dado como JSON
+    dentro de um único arquivo HTML. Não precisa de servidor, banco de dado ou instalação para
+    ser visualizado: abre por duplo clique em qualquer computador, e pode ser publicado direto
+    num GitHub Pages. É a superfície pensada para \emph{mostrar e compartilhar} o protótipo.
+    Tem como custo o dado ficar ``congelado'' no momento em que o gerador rodou --- para
+    atualizar, roda de novo.
+  \item \textbf{Servidor Flask} (\codigo{app.py}) --- serve o mesmo dado sempre ao vivo,
+    buscando a API a cada visita nova (respeitando o cache de 24h). Pensado para uso local /
+    desenvolvimento, onde dado sempre atualizado importa mais que portabilidade.
+\end{enumerate}
+
+\subsection{Interface do painel}
+
+O painel estático foi desenhado no mesmo padrão visual de outro produto do autor
+(\emph{atf-georadar}, ferramenta de inteligência imobiliária): tudo em uma única página,
+sem \emph{build step}, usando bibliotecas via CDN (\emph{Chart.js} para os gráficos,
+\emph{Leaflet} para o mapa) e dado embutido diretamente no HTML gerado. Recursos:
+
+\begin{itemize}
+  \item \textbf{KPIs} --- total captado historicamente, número de programas abertos, total de
+    oportunidade não usada, número de cidades cobertas.
+  \item \textbf{Gráficos} --- valor histórico captado por cidade e oportunidade aberta não
+    usada por cidade, ambos em barra, ordenados.
+  \item \textbf{Mapa} --- um marcador por município (tamanho proporcional à oportunidade
+    aberta não usada), clicável, filtra a tabela ao clicar.
+  \item \textbf{Filtro cruzado} --- cidade, órgão repassador e busca por texto no nome do
+    programa, atualizando tabela, gráfico e histórico juntos.
+  \item \textbf{Ficha / minuta imprimível} --- modal com o rascunho de plano de trabalho, link
+    direto para o programa no portal oficial, e botão de impressão / salvar em PDF.
+  \item \textbf{Exportar CSV} --- baixa a seleção filtrada atual.
+  \item \textbf{Sistema de temas} --- três paletas trocáveis (dourado, verde, azul),
+    selecionadas por um controle no canto do cabeçalho e persistidas em
+    \codigo{localStorage}. O dourado é o tema padrão do CaptaGov; verde e azul dialogam
+    respectivamente com a identidade visual do FLORA e com um tom institucional mais neutro,
+    mantendo os três produtos da família reconhecíveis lado a lado (fundo bem escuro, cantos
+    bem arredondados, badge em formato de pílula, marca de canto), sem repetir a cor de nenhum
+    dos outros dois produtos.
+\end{itemize}
+
+\subsection{Estado atual dos dados}
+
+Na geração mais recente do painel, cobrindo os 79 municípios de Mato Grosso do Sul:
+
+\begin{center}
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Indicador} & \textbf{Valor} \\
+\midrule
+Municípios cobertos & 79 (todos os do MS) \\
+Programas federais abertos para candidatura direta & 18 \\
+Oportunidades (cidade × programa não usado) & 1.385 \\
+Valor histórico de captação mapeado & R\$ 839.437.599 \\
+Propostas históricas indexadas & 1.341 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Limitações Conhecidas}
+
+Transparência técnica sobre o que o protótipo \emph{não} faz ainda:
+
+\begin{itemize}
+  \item A minuta gerada é um rascunho de texto simples a partir dos campos do programa --- não
+    é o formulário oficial de nenhum órgão repassador, que varia por ministério.
+  \item Só o módulo ``Parcerias'' do Transferegov foi explorado. Existem outros três módulos
+    (Especiais, Fundo a Fundo, Discricionárias e Legais) ainda não integrados.
+  \item O painel estático publicado não se atualiza sozinho; reflete o momento em que o
+    gerador rodou pela última vez.
+  \item Mapa e gráfico dependem de carregar Chart.js e Leaflet via CDN --- funcionam offline
+    apenas depois do primeiro carregamento com internet.
+\end{itemize}
+
+\section{Roadmap Técnico --- Próximas Integrações}
+
+Quatro extensões foram identificadas como próximo passo natural, cada uma com uma trava de
+acesso a dado diferente --- distinção que muda completamente o que é possível prototipar
+agora versus o que só vira produto real depois de uma relação comercial com o cliente.
+
+\subsection{Prestação de contas automática}
+
+\textbf{O que resolve:} depois que o recurso é captado, a prefeitura precisa prestar contas
+do uso --- processo que hoje assusta gestor pequeno pelo risco de glosa e inabilitação junto
+ao Tribunal de Contas. É a continuação natural do CaptaGov: hoje ele só ajuda a captar, essa
+extensão ajuda a não perder o que já foi captado.
+
+\textbf{Fonte de dado:} mesma API pública já em uso, endpoint
+\codigo{/ep/api/atos-prep/parceria/editar/\{id\}} (já mapeado durante o desenvolvimento do
+CaptaGov), que expõe plano de trabalho, metas padrão e dado orçamentário da parceria já
+formalizada.
+
+\textbf{Como implementaria:} novo módulo seguindo o mesmo padrão de
+\codigo{data\_fetch.py} (cache de 24h, mesma convenção de nomes), cruzando meta planejada no
+plano de trabalho contra execução relatada, gerando um documento de prestação de contas
+estruturado a partir do gap entre os dois.
+
+\textbf{Trava de acesso:} nenhuma --- mesmo dado público, mesmo pipeline. É a única das
+quatro extensões que pode evoluir hoje sem depender de ninguém liberar acesso a nada.
+
+\subsection{Cadastro imobiliário automatizado (IPTU)}
+
+\textbf{O que resolve:} baixa arrecadação própria por cadastro imobiliário desatualizado ---
+construção nova ou ampliação não declarada ao município. Ferramenta que aumenta receita sem
+alterar alíquota, o que politicamente é muito mais fácil de vender a um prefeito do que
+aumento de imposto.
+
+\textbf{Fonte de dado:} reaproveita o motor geoespacial já construído no \emph{atf-georadar}
+(ponto-em-polígono por \emph{ray-casting} próprio, malha de lote oficial via CTM,
+zoneamento via servidor ArcGIS da prefeitura), somado a imagem de satélite (Sentinel-2,
+gratuita, ou aérea da prefeitura quando disponível) para detectar área construída.
+
+\textbf{Como implementaria:} pipeline de detecção de contorno construído sobre a imagem de
+satélite, comparado ao lote da malha CTM; cruzamento contra o cadastro de IPTU para apontar
+divergência entre área construída real e área declarada.
+
+\textbf{Trava de acesso:} o cadastro de IPTU é um sistema interno da prefeitura (ex.\ SIAT,
+e-Cidade), sem API pública. Um protótipo funciona só com dado público --- mostra o método
+(``este imóvel tem contorno construído que não bate com a média da região''), mas sem cruzar
+contra o cadastro real. O produto de verdade só existe depois que a prefeitura vira cliente e
+libera acesso ao próprio cadastro.
+
+\subsection{Fiscalização de obra irregular}
+
+\textbf{O que resolve:} fecha o ciclo com o CityPro --- de nada adianta um licenciamento
+urbano eficiente se obra clandestina (sem alvará ou fora do projeto aprovado) segue sem
+fiscalização.
+
+\textbf{Fonte de dado:} alvará emitido (dado que só existe dentro do banco do CityPro,
+produto fechado de terceiro) cruzado com imagem de satélite temporal, comparando duas datas
+para detectar mudança física no lote.
+
+\textbf{Como implementaria:} pipeline de detecção de mudança (\emph{change detection}) entre
+duas capturas de imagem do mesmo lote; sinaliza lote com construção nova sem alvará
+correspondente, ou com área construída maior que a aprovada.
+
+\textbf{Trava de acesso:} igual ao item anterior --- só integra de fato com acesso ao banco
+de dado do CityPro, o que depende de parceria comercial com quem desenvolveu o produto, não
+de scraping de dado público. Protótipo demonstrativo usaria alvará simulado.
+
+\subsection{Painel de indicadores municipais unificado}
+
+\textbf{O que resolve:} hoje cada ferramenta da família fala de um recorte isolado --- CityPro
+fala de licenciamento, FLORA de meio ambiente, CaptaGov de captação. Um painel único, cruzando
+indicador de saúde, educação, meio ambiente e finanças públicas do mesmo município, é o
+próximo passo depois que os produtos pontuais provarem valor individualmente.
+
+\textbf{Fonte de dado:} múltiplas APIs públicas --- IBGE SIDRA (indicador socioeconômico),
+DataSUS / e-Gestor AB (saúde), INEP / QEdu (educação), além do próprio Transferegov já
+integrado.
+
+\textbf{Como implementaria:} um conector por fonte, cada um normalizando pro mesmo identificador de
+município (código IBGE), consolidando num único painel comparável.
+
+\textbf{Trava de acesso:} nenhuma trava de acesso, mas custo de manutenção mais alto --- cada
+fonte tem formato, cadência de atualização e nomenclatura próprios; é o item de maior esforço
+de engenharia entre os quatro, e o de proposta de valor mais genérica isoladamente.
+
+\subsection{Resumo comparativo}
+
+\begin{center}
+\begin{tabular}{@{}p{4.2cm}p{3.6cm}p{3.6cm}p{2.6cm}@{}}
+\toprule
+\textbf{Extensão} & \textbf{Fonte de dado} & \textbf{Trava de acesso} & \textbf{Esforço} \\
+\midrule
+Prestação de contas & API pública Transferegov & Nenhuma & Baixo \\
+Cadastro imobiliário (IPTU) & Satélite + malha CTM & Cadastro interno da prefeitura & Médio \\
+Fiscalização de obra irregular & Satélite temporal + CityPro & Banco de dado do CityPro & Médio \\
+Painel unificado & IBGE, DataSUS, INEP, Transferegov & Nenhuma & Alto \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Conclusão e Próximos Passos}
+
+O CaptaGov já demonstra, com dado real e sem custo de API, o método central da família de
+produtos: cruzar dado público disperso para revelar oportunidade que o gestor público não
+enxerga sozinho. A extensão de \textbf{prestação de contas} é o passo mais natural a seguir
+--- zero trava de acesso, mesmo pipeline, resolve a dor que mais preocupa prefeito pequeno
+depois de captar recurso.
+
+As duas extensões que dependem de dado interno da prefeitura ou do CityPro (\textbf{cadastro
+de IPTU} e \textbf{fiscalização de obra irregular}) são, ao mesmo tempo, as de maior potencial
+de receita e as que exigem uma conversa comercial antes de virarem produto de verdade --- o
+protótipo com dado público serve para abrir essa conversa, não para substituí-la.
+
+\vspace{1em}
+\noindent\textbf{Link do painel publicado:}
+\url{https://matheusassiso.github.io/captagov-prototype/}
+
+\end{document}

@@ -4,3 +4,7 @@ __pycache__/
 .venv/
 .claude-flow/
 server.log
+doc/*.aux
+doc/*.log
+doc/*.out
+doc/*.toc
