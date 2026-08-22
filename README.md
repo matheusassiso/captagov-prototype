@@ -3,9 +3,9 @@
 ## ➡️ [ABRIR O PAINEL](https://matheusassiso.github.io/captagov-prototype/) ⬅️
 
 Cruza programa de repasse federal aberto (API pública Transferegov, ex-SICONV)
-com o histórico de captação de cada uma das 10 maiores cidades do MS —
-mostra qual oportunidade a prefeitura ainda não usou, e gera uma minuta de
-plano de trabalho de partida.
+com o histórico de captação de cada uma das 79 cidades do MS — mostra qual
+oportunidade a prefeitura ainda não usou, e gera uma minuta de plano de
+trabalho de partida.
 
 Dado real, sem chave de API. Repositório privado, painel publicado (link acima
 funciona sem login — mesmo esquema do atf-georadar). Pra atualizar o link com
@@ -43,8 +43,12 @@ python app.py            # ou sobe o servidor em http://127.0.0.1:5000
   política, não é candidatura direta).
 - Só cobre o módulo "Parcerias" do Transferegov. Tem outros três módulos
   (Especiais, Fundo a Fundo, Discricionárias e Legais) não explorados ainda.
-- Lista de cidades hardcoded (10 maiores do MS por população IBGE, com lat/lon
-  do Nominatim/OSM). Trocar estado/lista = editar `CIDADES_MS` em `data_fetch.py`.
+- Lista das 79 cidades do MS hardcoded, com lat/lon calculado a partir da
+  malha municipal do IBGE (média dos vértices do polígono, não é o centroide
+  geométrico exato — suficiente pra marcador no mapa). Trocar de estado =
+  editar `CIDADES_MS` em `data_fetch.py` (buscar a malha da UF nova em
+  `servicodados.ibge.gov.br/api/v3/malhas/estados/{UF}?formato=application/vnd.geo+json&intrarregiao=municipio`
+  e recalcular).
 - O painel (`docs/index.html`) carrega Chart.js e Leaflet de CDN — o *dado* já
   vem embutido no arquivo (sem fetch), mas o mapa e os gráficos só desenham
   com internet na primeira carga da página.

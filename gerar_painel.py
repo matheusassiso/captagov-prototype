@@ -140,7 +140,7 @@ footer{max-width:1200px;margin:2rem auto;padding:0 2rem 2rem;color:var(--muted);
 <body>
 <header>
   <h1>CaptaGov <span style="color:var(--muted);font-weight:400">protótipo</span></h1>
-  <div class="sub">Oportunidade de repasse federal aberta x histórico de captação — 10 maiores cidades do MS · gerado em __GERADO_EM__</div>
+  <div class="sub">Oportunidade de repasse federal aberta x histórico de captação — as 79 cidades do MS · gerado em __GERADO_EM__</div>
 </header>
 <main>
   <div class="kpis" id="kpis"></div>
@@ -227,9 +227,9 @@ function renderKpis(){
   const totalCaptado = DATA.cidades.reduce((s,c)=>s+c.valorTotal,0);
   const totalAbertas = DATA.cidades.reduce((s,c)=>s+c.nAbertas,0);
   document.getElementById("kpis").innerHTML = `
-    <div class="kpi"><div class="n">${fmtBRL(totalCaptado)}</div><div class="l">captado historicamente (10 cidades)</div></div>
+    <div class="kpi"><div class="n">${fmtBRL(totalCaptado)}</div><div class="l">captado historicamente (${DATA.cidades.length} cidades)</div></div>
     <div class="kpi"><div class="n">${DATA.totalProgramasAbertos}</div><div class="l">programas federais abertos agora</div></div>
-    <div class="kpi"><div class="n">${totalAbertas}</div><div class="l">oportunidade não usada (soma das 10)</div></div>
+    <div class="kpi"><div class="n">${totalAbertas}</div><div class="l">oportunidade não usada (soma de todas)</div></div>
     <div class="kpi"><div class="n">${DATA.cidades.length}</div><div class="l">cidades cobertas</div></div>`;
 }
 
