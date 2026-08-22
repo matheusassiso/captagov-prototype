@@ -51,7 +51,13 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem 2rem 3rem}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
 @media(max-width:800px){.grid2{grid-template-columns:1fr}}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:1.2rem}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.8rem}
+.card-head h3{margin:0;font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:700}
 .card h3{margin:0 0 .8rem;font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:700}
+.btn-ver{background:none;color:var(--accent);border:1px solid var(--border);border-radius:999px;
+  padding:.3rem .8rem;font-size:.75rem;cursor:pointer;flex:none}
+.btn-ver:hover{border-color:var(--accent)}
+.chart-scroll{overflow-y:auto;overflow-x:hidden}
 #mapa{height:340px;border-radius:12px}
 table{width:100%;border-collapse:collapse;font-size:.85rem}
 th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--border)}
@@ -109,8 +115,20 @@ footer{max-width:1200px;margin:2rem auto;padding:0 2rem 2rem;color:var(--muted);
   </div>
 
   <div class="grid2">
-    <div class="card"><h3>Valor histórico captado por cidade</h3><canvas id="chartValor" height="220"></canvas></div>
-    <div class="card"><h3>Oportunidade aberta não usada por cidade</h3><canvas id="chartAbertas" height="220"></canvas></div>
+    <div class="card">
+      <div class="card-head">
+        <h3>Valor histórico captado por cidade</h3>
+        <button class="btn-ver" id="btnVerValor" onclick="alternarChart('valor')">ver todas (79)</button>
+      </div>
+      <div class="chart-scroll" id="wrapValor"><div id="innerValor"><canvas id="chartValor"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <h3>Oportunidade aberta não usada por cidade</h3>
+        <button class="btn-ver" id="btnVerAbertas" onclick="alternarChart('abertas')">ver todas (79)</button>
+      </div>
+      <div class="chart-scroll" id="wrapAbertas"><div id="innerAbertas"><canvas id="chartAbertas"></canvas></div></div>
+    </div>
   </div>
 
   <div class="card" style="margin-bottom:1.5rem">
@@ -204,18 +222,46 @@ function corTema(nomeVar){
 let charts = {};
 function grafico(id,cfg){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),cfg); }
 
-function renderCharts(){
-  const accent = corTema("--accent"), accent2 = corTema("--accent2"), muted = corTema("--muted");
-  const porValor = DATA.cidades.slice().sort((a,b)=>b.valorTotal-a.valorTotal);
-  grafico("chartValor",{type:"bar",data:{labels:porValor.map(c=>c.nome),
-    datasets:[{data:porValor.map(c=>c.valorTotal),backgroundColor:accent}]},
-    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:muted}},y:{ticks:{color:muted,
-      callback:v=>"R$"+(v/1e6).toFixed(0)+"M"}}}}});
+let chartState = {valor:false, abertas:false}; // false = top 10 (colunas), true = todas (barra horizontal, com rolagem)
+function alternarChart(qual){ chartState[qual] = !chartState[qual]; renderCharts(); }
 
-  const porAbertas = DATA.cidades.slice().sort((a,b)=>b.nAbertas-a.nAbertas);
-  grafico("chartAbertas",{type:"bar",data:{labels:porAbertas.map(c=>c.nome),
-    datasets:[{data:porAbertas.map(c=>c.nAbertas),backgroundColor:accent2}]},
-    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:muted}},y:{ticks:{color:muted}}}}});
+function desenharChart(canvasId, wrapId, innerId, btnId, expandido, ordenado, valorFn, cor, fmtEixo){
+  const muted = corTema("--muted");
+  const lista = expandido ? ordenado : ordenado.slice(0,10);
+  const wrap = document.getElementById(wrapId), inner = document.getElementById(innerId);
+  document.getElementById(btnId).textContent = expandido ? "ver top 10" : `ver todas (${ordenado.length})`;
+
+  if(expandido){
+    // outer (wrap) fica com altura fixa + scroll; inner recebe a altura real do conteúdo —
+    // se as duas alturas ficam no mesmo elemento o Chart.js lê o tamanho já cortado pelo
+    // max-height e comprime tudo (autoSkip esconde a maioria dos rótulos).
+    wrap.style.height = "480px";
+    inner.style.height = Math.max(480, lista.length*24) + "px";
+    grafico(canvasId,{type:"bar",data:{labels:lista.map(c=>c.nome),
+      datasets:[{data:lista.map(valorFn),backgroundColor:cor}]},
+      options:{indexAxis:"y",maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{x:{ticks:{color:muted,callback:fmtEixo}},
+          y:{ticks:{color:muted,autoSkip:false}}}}});
+  }else{
+    wrap.style.height = "260px";
+    inner.style.height = "260px";
+    grafico(canvasId,{type:"bar",data:{labels:lista.map(c=>c.nome),
+      datasets:[{data:lista.map(valorFn),backgroundColor:cor}]},
+      options:{maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{x:{ticks:{color:muted}},y:{ticks:{color:muted,callback:fmtEixo}}}}});
+  }
+}
+
+function renderCharts(){
+  const accent = corTema("--accent"), accent2 = corTema("--accent2");
+  desenharChart("chartValor","wrapValor","innerValor","btnVerValor",chartState.valor,
+    DATA.cidades.slice().sort((a,b)=>b.valorTotal-a.valorTotal),
+    c=>c.valorTotal, accent, v=>"R$"+(v/1e6).toFixed(0)+"M");
+  desenharChart("chartAbertas","wrapAbertas","innerAbertas","btnVerAbertas",chartState.abertas,
+    DATA.cidades.slice().sort((a,b)=>b.nAbertas-a.nAbertas),
+    c=>c.nAbertas, accent2, v=>v);
 }
 
 let map, marcadores=[];
