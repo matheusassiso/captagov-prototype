@@ -199,8 +199,8 @@ main{max-width:1200px;margin:0 auto;padding:1.5rem 2rem 3rem}
 #svgMapa{width:100%;height:auto;display:block}
 #svgMapa path{stroke:var(--bg);stroke-width:1;cursor:pointer;transition:opacity .15s}
 #svgMapa path:hover{opacity:.75}
-#svgMapa text.rotulo{fill:var(--text);font-size:9px;font-weight:700;text-anchor:middle;
-  pointer-events:none;paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+#svgMapa text.rotulo{fill:var(--text);font-size:6px;font-weight:700;text-anchor:middle;
+  pointer-events:none;paint-order:stroke;stroke:var(--bg);stroke-width:2px}
 table{width:100%;border-collapse:collapse;font-size:.85rem}
 th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--border)}
 th{color:var(--muted);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
@@ -491,8 +491,7 @@ function renderMapa(){
   });
 
   svg.querySelectorAll("text.rotulo").forEach(t=>t.remove());
-  const top10 = DATA.cidades.slice().sort((a,b)=>valorDe(b)-valorDe(a)).slice(0,10);
-  top10.forEach(c=>{
+  DATA.cidades.forEach(c=>{
     const path = svg.querySelector(`path[data-ibge="${c.ibge}"]`);
     if(!path) return;
     const bbox = path.getBBox();
