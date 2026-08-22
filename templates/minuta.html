@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Minuta — {{ programa.nm_programa }}{% endblock %}
+{% block content %}
+  <p><a href="/cidade/{{ cd_ibge }}">← voltar</a></p>
+  <h1>Minuta de plano de trabalho</h1>
+  <p class="lead">{{ nome }} — {{ programa.nm_programa }}</p>
+  <p><a href="/cidade/{{ cd_ibge }}/minuta/{{ programa.id_programa }}/download">baixar .txt</a></p>
+  <pre>{{ texto }}</pre>
+{% endblock %}

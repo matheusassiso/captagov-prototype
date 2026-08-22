@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ nome }} — CaptaGov{% endblock %}
+{% block content %}
+  <p><a href="/">← voltar</a></p>
+  <h1>{{ nome }} - MS</h1>
+
+  <h2>Oportunidade aberta ainda não usada ({{ gap|length }})</h2>
+  {% if gap %}
+  <table>
+    <thead>
+      <tr>
+        <th>Programa</th>
+        <th>Órgão repassador</th>
+        <th>Instrumento</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in gap %}
+      <tr>
+        <td>{{ p.nm_programa }}</td>
+        <td>{{ p.nm_ente_repassador }}</td>
+        <td>{{ p.tp_instrumento }}</td>
+        <td><a href="/cidade/{{ cd_ibge }}/minuta/{{ p.id_programa }}">gerar minuta →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nenhuma oportunidade de candidatura direta em aberto no momento (ou já usadas todas).</p>
+  {% endif %}
+
+  <h2>Histórico de propostas enviadas ({{ propostas|length }})</h2>
+  {% if propostas %}
+  <table>
+    <thead>
+      <tr>
+        <th>Objeto</th>
+        <th>Situação</th>
+        <th>Valor total</th>
+        <th>Data</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in propostas[:30] %}
+      <tr>
+        <td>{{ (p.ds_objeto or "")[:120] }}{% if (p.ds_objeto or "")|length > 120 %}…{% endif %}</td>
+        <td>{{ p.situacao_proposta }}</td>
+        <td>R$ {{ "{:,.0f}".format((p.nr_vlr_total or p.vl_total_planejamento_gastos) or 0).replace(",", ".") }}</td>
+        <td>{{ p.dt_proposta }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if propostas|length > 30 %}
+  <p><em>mostrando 30 de {{ propostas|length }}</em></p>
+  {% endif %}
+  {% else %}
+  <p>Nenhuma proposta histórica encontrada pra este município.</p>
+  {% endif %}
+{% endblock %}

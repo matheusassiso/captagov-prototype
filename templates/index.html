@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}CaptaGov — 10 maiores cidades do MS{% endblock %}
+{% block content %}
+  <h1>Oportunidade de repasse federal não usada</h1>
+  <p class="lead">
+    {{ total_programas_abertos }} programa(s) federal(is) aberto(s) pra candidatura direta agora,
+    cruzado com o histórico de captação de cada cidade.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Cidade</th>
+        <th>Propostas já enviadas</th>
+        <th>Valor histórico captado</th>
+        <th>Oportunidade aberta não usada</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in cidades %}
+      <tr>
+        <td>{{ c.nome }}</td>
+        <td>{{ c.n_propostas }}</td>
+        <td>R$ {{ "{:,.0f}".format(c.valor_total).replace(",", ".") }}</td>
+        <td class="{{ 'destaque' if c.n_oportunidades_abertas > 0 else '' }}">
+          {{ c.n_oportunidades_abertas }}
+        </td>
+        <td><a href="/cidade/{{ c.cd_ibge }}">ver detalhe →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
