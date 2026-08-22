@@ -40,6 +40,7 @@ def montar_dados() -> dict:
         })
 
         for p in gap:
+            detalhe = df.get_programa_detalhe(p["id_programa"])
             oportunidades_out.append({
                 "ibgeCidade": c["ibge"],
                 "nomeCidade": c["nome"],
@@ -48,6 +49,11 @@ def montar_dados() -> dict:
                 "nmPrograma": p.get("nm_programa"),
                 "nmEnteRepassador": p.get("nm_ente_repassador"),
                 "tpInstrumento": p.get("tp_instrumento"),
+                "urlPortal": detalhe["url"] if detalhe else df.url_portal_programa(p["id_programa"]),
+                "captacaoInicio": detalhe["captacaoInicio"] if detalhe else None,
+                "captacaoFim": detalhe["captacaoFim"] if detalhe else None,
+                "condicionantes": detalhe["condicionantes"] if detalhe else [],
+                "anexos": detalhe["anexos"] if detalhe else [],
                 "minuta": df.gerar_minuta(c["nome"], p),
             })
 
@@ -159,7 +165,7 @@ footer{max-width:1200px;margin:2rem auto;padding:0 2rem 2rem;color:var(--muted);
   <div class="card" style="margin-bottom:1.5rem">
     <h3>Oportunidade aberta não usada <span id="contagem" style="color:var(--text);font-weight:400"></span></h3>
     <table>
-      <thead><tr><th>Cidade</th><th>Programa</th><th>Órgão repassador</th><th>Instrumento</th><th></th></tr></thead>
+      <thead><tr><th>Cidade</th><th>Programa</th><th>Órgão repassador</th><th>Instrumento</th><th>Prazo captação</th><th></th></tr></thead>
       <tbody id="tbody"></tbody>
     </table>
   </div>
@@ -173,10 +179,11 @@ footer{max-width:1200px;margin:2rem auto;padding:0 2rem 2rem;color:var(--muted);
   </div>
 </main>
 <footer>
-  Dado real da API pública Transferegov (api-publica.transferegov.gestao.gov.br), módulo Parcerias.
-  "Oportunidade aberta" = programa com situação Disponibilizado e candidatura direta
-  (Espontâneo/Específico) — fora emenda parlamentar. Minuta é rascunho automático,
-  não é o formulário oficial de nenhum órgão repassador.
+  Dado real da API pública Transferegov (api-publica.transferegov.gestao.gov.br), módulo Parcerias,
+  cruzado com requisitos/anexos/janela de captação do portal público
+  (parcerias.transferegov.sistema.gov.br, sem login). "Oportunidade aberta" = programa com
+  situação Disponibilizado e candidatura direta (Espontâneo/Específico) — fora emenda
+  parlamentar. Minuta é rascunho automático, não é o formulário oficial de nenhum órgão repassador.
 </footer>
 
 <div class="modal" id="modal">
@@ -264,21 +271,27 @@ function renderTabela(){
   document.getElementById("tbody").innerHTML = linhas.map((o,i)=>`<tr>
     <td>${o.nomeCidade}</td><td>${o.nmPrograma||""}</td><td>${o.nmEnteRepassador||""}</td>
     <td>${o.tpInstrumento||""}</td>
-    <td><button class="acao" onclick="abrirFicha(${DATA.oportunidades.indexOf(o)})">📋 ficha</button></td></tr>`).join("");
+    <td>${o.captacaoFim||"-"}</td>
+    <td style="white-space:nowrap">
+      <button class="acao" onclick="abrirFicha(${DATA.oportunidades.indexOf(o)})">📋 ficha</button>
+      &nbsp;<a class="acao" href="${o.urlPortal}" target="_blank" rel="noopener">🔗 edital</a>
+    </td></tr>`).join("");
 }
 
 function abrirFicha(i){
   const o = DATA.oportunidades[i];
   document.getElementById("modalBody").innerHTML =
-    `<h2>${o.nmPrograma}</h2><p style="color:var(--muted)">${o.nomeCidade} - MS</p><pre>${o.minuta}</pre>`;
+    `<h2>${o.nmPrograma}</h2><p style="color:var(--muted)">${o.nomeCidade} - MS</p>
+     <p class="no-print"><a href="${o.urlPortal}" target="_blank" rel="noopener">🔗 abrir programa no Transferegov.br</a></p>
+     <pre>${o.minuta}</pre>`;
   document.getElementById("modal").classList.add("on");
 }
 function fecharModal(){ document.getElementById("modal").classList.remove("on"); }
 
 function exportarCSV(){
   const linhas = oportunidadesFiltradas();
-  const cab = ["cidade","programa","codigo","orgao_repassador","instrumento"];
-  const corpo = linhas.map(o=>[o.nomeCidade,o.nmPrograma,o.cdPrograma,o.nmEnteRepassador,o.tpInstrumento]
+  const cab = ["cidade","programa","codigo","orgao_repassador","instrumento","prazo_captacao","link_edital"];
+  const corpo = linhas.map(o=>[o.nomeCidade,o.nmPrograma,o.cdPrograma,o.nmEnteRepassador,o.tpInstrumento,o.captacaoFim,o.urlPortal]
     .map(v=>`"${String(v||"").replace(/"/g,'""')}"`).join(";"));
   const csv = "﻿"+[cab.join(";"),...corpo].join("\r\n");
   const a = document.createElement("a");

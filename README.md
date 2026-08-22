@@ -48,3 +48,9 @@ python app.py            # ou sobe o servidor em http://127.0.0.1:5000
 - O painel (`docs/index.html`) carrega Chart.js e Leaflet de CDN — o *dado* já
   vem embutido no arquivo (sem fetch), mas o mapa e os gráficos só desenham
   com internet na primeira carga da página.
+- Requisitos/anexos/janela real de captação e o link "edital" vêm de um
+  segundo endpoint público: `parcerias.transferegov.sistema.gov.br/ep/api/atos-prep/programa/{id}`
+  (o mesmo que o portal usa, sem login). Programa recente (cadastrado via
+  integração de outro sistema, ex: emenda parlamentar) costuma vir sem esses
+  campos preenchidos — nesse caso a ficha mostra só o que a API de dados
+  abertos tem.

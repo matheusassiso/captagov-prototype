@@ -11,6 +11,10 @@ from pathlib import Path
 import requests
 
 BASE_URL = "https://api-publica.transferegov.gestao.gov.br/parcerias"
+# Portal público (SPA) — mesmo dado do BASE_URL, mas com requisitos/anexos/janela real
+# de captação que a API de dados abertos não expõe. Também sem autenticação.
+PORTAL_API = "https://parcerias.transferegov.sistema.gov.br/ep/api/atos-prep"
+PORTAL_URL_PROGRAMA = "https://parcerias.transferegov.sistema.gov.br/ep-atos-prep-web/atos-prep/programa/detalhamento/{id}"
 CACHE_DIR = Path(__file__).parent / "cache"
 CACHE_TTL_SECONDS = 24 * 60 * 60  # 24h — dado do governo não muda a cada minuto
 
@@ -35,16 +39,22 @@ def _cache_path(key: str) -> Path:
     return CACHE_DIR / f"{key}.json"
 
 
-def _cached_get(path: str, params: dict, cache_key: str) -> dict:
+def _cached_get_url(url: str, params: dict, cache_key: str) -> dict | None:
     cache_file = _cache_path(cache_key)
     if cache_file.exists() and (time.time() - cache_file.stat().st_mtime) < CACHE_TTL_SECONDS:
         return json.loads(cache_file.read_text(encoding="utf-8"))
 
-    resp = requests.get(f"{BASE_URL}{path}", params=params, timeout=30)
+    resp = requests.get(url, params=params, timeout=30)
+    if resp.status_code == 404:
+        return None
     resp.raise_for_status()
     data = resp.json()
     cache_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return data
+
+
+def _cached_get(path: str, params: dict, cache_key: str) -> dict:
+    return _cached_get_url(f"{BASE_URL}{path}", params, cache_key)
 
 
 def get_programas_abertos() -> list[dict]:
@@ -90,6 +100,36 @@ def calcular_gap(cd_ibge: int, programas_abertos: list[dict], propostas: list[di
     return [p for p in programas_abertos if p["id_programa"] not in ids_usados]
 
 
+def url_portal_programa(id_programa: int) -> str:
+    return PORTAL_URL_PROGRAMA.format(id=id_programa)
+
+
+def get_programa_detalhe(id_programa: int) -> dict | None:
+    """Detalhe rico do programa via o portal (não a API de dados abertos):
+    requisitos/condicionantes, anexos (edital, resolução...) e a janela real
+    de captação. Retorna None se o id não existir nesse endpoint (404)."""
+    data = _cached_get_url(
+        f"{PORTAL_API}/programa/{id_programa}", {}, f"portal_programa_{id_programa}"
+    )
+    if data is None:
+        return None
+    return {
+        "url": url_portal_programa(id_programa),
+        "captacaoInicio": data.get("dtaInicioRecebPropEspfic"),
+        "captacaoFim": data.get("dtaFimRecebPropEspfic"),
+        "recebendoProposta": data.get("recebendoProposta"),
+        "condicionantes": [
+            r["descricaoRequisito"] for r in (data.get("requisitos") or [])
+            if r.get("descricaoRequisito")
+        ],
+        "anexos": [
+            a["anexo"]["descricaoAnexo"] or a["anexo"]["nomeArquivo"]
+            for a in (data.get("anexos") or []) if a.get("anexo")
+        ],
+        "areasAtuacao": [a.get("descricao") for a in (data.get("areasAtuacao") or [])],
+    }
+
+
 def gerar_minuta(nome_cidade: str, programa: dict) -> str:
     """Rascunho de plano de trabalho a partir dos campos do programa.
 
@@ -97,6 +137,26 @@ def gerar_minuta(nome_cidade: str, programa: dict) -> str:
     órgão repassador — isso exigiria mapear o padrão de cada ministério.
     Serve pra mostrar o ponto de partida, não pra protocolar.
     """
+    detalhe = get_programa_detalhe(programa["id_programa"])
+
+    bloco_link = f"\nEDITAL/PROGRAMA NO PORTAL: {detalhe['url']}\n" if detalhe else ""
+
+    bloco_captacao = ""
+    if detalhe and (detalhe["captacaoInicio"] or detalhe["captacaoFim"]):
+        bloco_captacao = (
+            f"\nJANELA DE CAPTAÇÃO: {detalhe['captacaoInicio'] or '?'} a "
+            f"{detalhe['captacaoFim'] or '?'}\n"
+        )
+
+    bloco_condicionantes = "(nenhum requisito publicado nesse programa até o momento)"
+    if detalhe and detalhe["condicionantes"]:
+        bloco_condicionantes = "\n".join(f"- {c}" for c in detalhe["condicionantes"])
+
+    bloco_anexos = ""
+    if detalhe and detalhe["anexos"]:
+        lista = "\n".join(f"- {a}" for a in detalhe["anexos"])
+        bloco_anexos = f"\n9. DOCUMENTOS/ANEXOS DO PROGRAMA (baixar no portal)\n{lista}\n"
+
     return f"""MINUTA DE PLANO DE TRABALHO (rascunho automático — revisar antes de usar)
 Gerado em {date.today().isoformat()}
 
@@ -106,7 +166,7 @@ PROGRAMA: {programa.get('nm_programa')}
 CÓDIGO: {programa.get('cd_programa')}
 ÓRGÃO REPASSADOR: {programa.get('nm_ente_repassador')}
 INSTRUMENTO: {programa.get('tp_instrumento')}
-
+{bloco_link}{bloco_captacao}
 1. OBJETO
 [Adaptar ao projeto específico do município a partir do objetivo do programa abaixo]
 
@@ -128,6 +188,9 @@ INSTRUMENTO: {programa.get('tp_instrumento')}
 7. CRONOGRAMA E METAS
 [Preencher junto com a secretaria responsável]
 
+8. CONDICIONANTES PARA RECEPÇÃO DE RECURSOS (do portal, cláusula suspensiva)
+{bloco_condicionantes}
+{bloco_anexos}
 ---
 Fonte dos dados do programa: API pública Transferegov (api-publica.transferegov.gestao.gov.br)
 Este documento é um ponto de partida gerado automaticamente. Não substitui análise técnica

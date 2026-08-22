@@ -21,7 +21,10 @@
         <td>{{ p.nm_programa }}</td>
         <td>{{ p.nm_ente_repassador }}</td>
         <td>{{ p.tp_instrumento }}</td>
-        <td><a href="/cidade/{{ cd_ibge }}/minuta/{{ p.id_programa }}">gerar minuta →</a></td>
+        <td>
+          <a href="/cidade/{{ cd_ibge }}/minuta/{{ p.id_programa }}">gerar minuta →</a>
+          &nbsp;<a href="https://parcerias.transferegov.sistema.gov.br/ep-atos-prep-web/atos-prep/programa/detalhamento/{{ p.id_programa }}" target="_blank" rel="noopener">edital ↗</a>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
