@@ -90,44 +90,64 @@ TEMPLATE = r"""<!DOCTYPE html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-:root{
-  --bg:#0f1512;--panel:#16201b;--panel2:#1c2820;--text:#e8ede9;--muted:#93a397;
-  --accent:#7fd858;--accent2:#4fa8d8;--border:#26332b;
+/* Paleta base — dourado (padrão), alinhada ao mesmo padrão CityPro/FLORA:
+   fundo bem escuro, cards com cantos bem arredondados, badge em pílula. */
+:root, :root[data-theme="dourado"]{
+  --bg:#120f08;--panel:#1c1710;--panel2:#241d13;--text:#f2ede1;--muted:#a89a7d;
+  --accent:#e0a52c;--accent2:#c97f2e;--border:#332a1a;--on-accent:#1c1508;
+}
+:root[data-theme="verde"]{
+  --bg:#0c1a10;--panel:#142819;--panel2:#1b3320;--text:#eaf2e8;--muted:#8fae94;
+  --accent:#c9cc4a;--accent2:#4a9660;--border:#22402a;--on-accent:#132008;
+}
+:root[data-theme="azul"]{
+  --bg:#0a121c;--panel:#101d2c;--panel2:#152537;--text:#e7edf5;--muted:#8ba0bb;
+  --accent:#4fa3e0;--accent2:#2f6fa8;--border:#1c3348;--on-accent:#071018;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI",Inter,sans-serif;line-height:1.5}
-header{padding:1.2rem 2rem;border-bottom:1px solid var(--border)}
-header h1{margin:0;font-size:1.3rem}
-header .sub{color:var(--muted);font-size:.85rem;margin-top:.2rem}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI",Inter,sans-serif;line-height:1.5;transition:background .2s,color .2s}
+header{padding:1.2rem 2rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:.6rem}
+.brand-mark{width:34px;height:34px;border-radius:10px 10px 10px 2px;background:linear-gradient(135deg,var(--accent),var(--accent2));flex:none}
+header h1{margin:0;font-size:1.35rem;font-weight:800;letter-spacing:-.01em}
+header .sub{color:var(--muted);font-size:.85rem;margin-top:.15rem}
+.temas{display:flex;gap:.4rem;align-items:center;background:var(--panel);border:1px solid var(--border);
+  border-radius:999px;padding:.3rem;flex:none}
+.temas button{width:22px;height:22px;border-radius:999px;border:2px solid transparent;cursor:pointer;padding:0}
+.temas button.on{border-color:var(--text)}
+.temas button.t-dourado{background:#e0a52c}
+.temas button.t-verde{background:#c9cc4a}
+.temas button.t-azul{background:#4fa3e0}
 main{max-width:1200px;margin:0 auto;padding:1.5rem 2rem 3rem}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
-.kpi{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:1rem 1.2rem}
-.kpi .n{font-size:1.6rem;font-weight:700;color:var(--accent)}
+.kpi{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:1.1rem 1.3rem}
+.kpi .n{font-size:1.7rem;font-weight:800;color:var(--accent)}
 .kpi .l{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
 .filtros{display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:1.5rem;align-items:center}
 .filtros select,.filtros input{background:var(--panel);color:var(--text);border:1px solid var(--border);
-  border-radius:6px;padding:.5rem .7rem;font-size:.85rem}
+  border-radius:999px;padding:.5rem .9rem;font-size:.85rem}
 .filtros input[type=text]{flex:1;min-width:180px}
-.btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;
-  padding:.5rem .8rem;font-size:.85rem;cursor:pointer}
-.btn:hover{border-color:var(--accent)}
+.btn{background:var(--accent);color:var(--on-accent);border:none;border-radius:999px;font-weight:700;
+  padding:.55rem 1rem;font-size:.85rem;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
 @media(max-width:800px){.grid2{grid-template-columns:1fr}}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:1rem}
-.card h3{margin:0 0 .8rem;font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
-#mapa{height:340px;border-radius:8px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:1.2rem}
+.card h3{margin:0 0 .8rem;font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:700}
+#mapa{height:340px;border-radius:12px}
 table{width:100%;border-collapse:collapse;font-size:.85rem}
 th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--border)}
-th{color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase}
+th{color:var(--muted);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
 tr:hover td{background:var(--panel2)}
-.acao{color:var(--accent);cursor:pointer;background:none;border:none;font-size:.85rem;padding:0}
-.acao:hover{text-decoration:underline}
+.acao{color:var(--accent);cursor:pointer;background:none;border:none;font-size:.85rem;padding:.15rem .5rem;
+  border-radius:999px;font-weight:600}
+.acao:hover{background:var(--panel2)}
 footer{max-width:1200px;margin:2rem auto;padding:0 2rem 2rem;color:var(--muted);font-size:.78rem}
 .modal{display:none;position:fixed;inset:0;background:#000c;z-index:9999;align-items:center;justify-content:center;padding:1.5rem}
 .modal.on{display:flex}
-.modal-box{background:var(--panel);border:1px solid var(--border);border-radius:10px;max-width:700px;
+.modal-box{background:var(--panel);border:1px solid var(--border);border-radius:20px;max-width:700px;
   width:100%;max-height:85vh;overflow:auto;padding:1.5rem}
-.modal-box pre{white-space:pre-wrap;font-size:.85rem;background:var(--panel2);padding:1rem;border-radius:8px}
+.modal-box pre{white-space:pre-wrap;font-size:.85rem;background:var(--panel2);padding:1rem;border-radius:12px}
 .modal-close{float:right;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer}
 @media print{
   body *{visibility:hidden}
@@ -138,9 +158,27 @@ footer{max-width:1200px;margin:2rem auto;padding:0 2rem 2rem;color:var(--muted);
 </style>
 </head>
 <body>
+<script>
+(function(){
+  try{
+    var t = localStorage.getItem("captagov_tema") || "dourado";
+    document.documentElement.dataset.theme = t;
+  }catch(e){}
+})();
+</script>
 <header>
-  <h1>CaptaGov <span style="color:var(--muted);font-weight:400">protótipo</span></h1>
-  <div class="sub">Oportunidade de repasse federal aberta x histórico de captação — as 79 cidades do MS · gerado em __GERADO_EM__</div>
+  <div class="brand">
+    <div class="brand-mark"></div>
+    <div>
+      <h1>CaptaGov <span style="color:var(--muted);font-weight:400">protótipo</span></h1>
+      <div class="sub">Oportunidade de repasse federal aberta x histórico de captação — as 79 cidades do MS · gerado em __GERADO_EM__</div>
+    </div>
+  </div>
+  <div class="temas" id="temas" title="Tema">
+    <button class="t-dourado" data-tema="dourado" title="Dourado"></button>
+    <button class="t-verde" data-tema="verde" title="Verde"></button>
+    <button class="t-azul" data-tema="azul" title="Azul"></button>
+  </div>
 </header>
 <main>
   <div class="kpis" id="kpis"></div>
@@ -200,6 +238,14 @@ let filtro = {cidade:"", orgao:"", busca:""};
 
 function fmtBRL(v){return "R$ " + Math.round(v).toLocaleString("pt-BR");}
 
+function aplicarTema(t){
+  document.documentElement.dataset.theme = t;
+  try{ localStorage.setItem("captagov_tema", t); }catch(e){}
+  document.querySelectorAll("#temas button").forEach(b=>b.classList.toggle("on", b.dataset.tema===t));
+  renderCharts(); renderMapa(); // cores dependem do tema, Canvas/Leaflet não leem var(--accent) sozinhos
+}
+document.querySelectorAll("#temas button").forEach(b=>b.onclick=()=>aplicarTema(b.dataset.tema));
+
 function popularFiltros(){
   const selCidade = document.getElementById("fCidade");
   DATA.cidades.slice().sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(c=>{
@@ -233,24 +279,30 @@ function renderKpis(){
     <div class="kpi"><div class="n">${DATA.cidades.length}</div><div class="l">cidades cobertas</div></div>`;
 }
 
+function corTema(nomeVar){
+  return getComputedStyle(document.documentElement).getPropertyValue(nomeVar).trim();
+}
+
 let charts = {};
 function grafico(id,cfg){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),cfg); }
 
 function renderCharts(){
+  const accent = corTema("--accent"), accent2 = corTema("--accent2"), muted = corTema("--muted");
   const porValor = DATA.cidades.slice().sort((a,b)=>b.valorTotal-a.valorTotal);
   grafico("chartValor",{type:"bar",data:{labels:porValor.map(c=>c.nome),
-    datasets:[{data:porValor.map(c=>c.valorTotal),backgroundColor:"#7fd858"}]},
-    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#93a397"}},y:{ticks:{color:"#93a397",
+    datasets:[{data:porValor.map(c=>c.valorTotal),backgroundColor:accent}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:muted}},y:{ticks:{color:muted,
       callback:v=>"R$"+(v/1e6).toFixed(0)+"M"}}}}});
 
   const porAbertas = DATA.cidades.slice().sort((a,b)=>b.nAbertas-a.nAbertas);
   grafico("chartAbertas",{type:"bar",data:{labels:porAbertas.map(c=>c.nome),
-    datasets:[{data:porAbertas.map(c=>c.nAbertas),backgroundColor:"#4fa8d8"}]},
-    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#93a397"}},y:{ticks:{color:"#93a397"}}}}});
+    datasets:[{data:porAbertas.map(c=>c.nAbertas),backgroundColor:accent2}]},
+    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:muted}},y:{ticks:{color:muted}}}}});
 }
 
 let map, marcadores=[];
 function renderMapa(){
+  const accent = corTema("--accent");
   if(!map){
     map = L.map("mapa").setView([-20.7,-54.9],6);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
@@ -258,7 +310,7 @@ function renderMapa(){
   marcadores.forEach(m=>map.removeLayer(m)); marcadores=[];
   DATA.cidades.forEach(c=>{
     const r = 6 + Math.sqrt(c.nAbertas)*5;
-    const m = L.circleMarker([c.lat,c.lon],{radius:r,color:"#7fd858",fillColor:"#7fd858",fillOpacity:.5})
+    const m = L.circleMarker([c.lat,c.lon],{radius:r,color:accent,fillColor:accent,fillOpacity:.5})
       .addTo(map).bindPopup(`<b>${c.nome}</b><br>${c.nAbertas} oportunidade(s) aberta(s)<br>${fmtBRL(c.valorTotal)} captado historicamente`);
     m.on("click",()=>{document.getElementById("fCidade").value=c.ibge; filtro.cidade=String(c.ibge); render();});
     marcadores.push(m);
@@ -314,6 +366,8 @@ function renderHistorico(){
 
 function render(){ renderKpis(); renderCharts(); renderMapa(); renderTabela(); renderHistorico(); }
 
+document.querySelectorAll("#temas button").forEach(b=>
+  b.classList.toggle("on", b.dataset.tema===(document.documentElement.dataset.theme||"dourado")));
 popularFiltros();
 render();
 </script>
