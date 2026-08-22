@@ -8,8 +8,13 @@ oportunidade a prefeitura ainda não usou, e gera uma minuta de plano de
 trabalho de partida.
 
 Dado real, sem chave de API. Repositório privado, painel publicado (link acima
-funciona sem login — mesmo esquema do atf-georadar). Pra atualizar o link com
-dado novo: `python gerar_painel.py` e `git push`.
+funciona sem login — mesmo esquema do atf-georadar).
+
+**Atualiza sozinho todo dia** — GitHub Actions (`.github/workflows/atualizar-painel.yml`)
+roda `gerar_painel.py` 1x por dia (6h em Campo Grande) e só comita se o dado
+mudou. Não depende do seu PC ligado. Rodar manual: aba **Actions** do repo →
+"Atualizar painel" → **Run workflow**. Trocar a frequência = editar o `cron:`
+do arquivo. Pra atualizar na mão local: `python gerar_painel.py` e `git push`.
 
 ## Rodar
 

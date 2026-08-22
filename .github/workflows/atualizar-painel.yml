@@ -1,0 +1,33 @@
+name: Atualizar painel
+
+"on":
+  schedule:
+    # 9h UTC = 6h em Campo Grande (UTC-3) — roda 1x por dia, dado do governo
+    # não muda de minuto a minuto.
+    - cron: "0 9 * * *"
+  workflow_dispatch: {} # permite rodar manual pela aba Actions do GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - run: python gerar_painel.py
+
+      - name: Commit e push se o painel mudou
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git diff --staged --quiet && echo "sem mudança, nada pra commitar" || \
+            (git commit -m "Atualiza painel automaticamente ($(date -u +%Y-%m-%d))" && git push)
