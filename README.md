@@ -7,8 +7,9 @@ com o histórico de captação de cada uma das 79 cidades do MS — mostra qual
 oportunidade a prefeitura ainda não usou, e gera uma minuta de plano de
 trabalho de partida.
 
-Dado real, sem chave de API. Repositório privado, painel publicado (link acima
-funciona sem login — mesmo esquema do atf-georadar).
+Dado real, sem chave de API. Repositório público (mudou de privado pra público
+pra liberar minuto grátis ilimitado do GitHub Actions — repo privado esbarra
+em limite de cobrança da conta).
 
 **Atualiza sozinho todo dia** — GitHub Actions (`.github/workflows/atualizar-painel.yml`)
 roda `gerar_painel.py` 1x por dia (6h em Campo Grande) e só comita se o dado
