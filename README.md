@@ -65,6 +65,12 @@ python app.py            # ou sobe o servidor em http://127.0.0.1:5000
 - Mapa é SVG estático com a malha real dos municípios (IBGE, qualidade mínima
   pra ficar leve), colorido por valor captado ou por oportunidade aberta
   (toggle no card) — sem pan/zoom, sem tile do OpenStreetMap.
+- "Valor do edital aberto" (`nr_vlr_global`) só vem preenchido em 1 dos 18
+  programas abertos pra candidatura direta hoje — os outros 17 não publicam
+  esse número. Por isso não tem gráfico de "valor disponível por programa";
+  o painel mostra isso como destaque pontual e foca a análise de valor no que
+  é real: histórico de captação por órgão, por ano e distribuição por
+  proposta (seção "Análise exploratória").
 - Requisitos/anexos/janela real de captação e o link "edital" vêm de um
   segundo endpoint público: `parcerias.transferegov.sistema.gov.br/ep/api/atos-prep/programa/{id}`
   (o mesmo que o portal usa, sem login). Programa recente (cadastrado via

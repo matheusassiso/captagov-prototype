@@ -75,6 +75,8 @@ def montar_svg_mapa() -> tuple[str, int, int]:
 
 def montar_dados() -> dict:
     programas_abertos = df.get_programas_abertos()
+    todos_programas = df.get_todos_programas()
+    orgao_por_programa = {p["id_programa"]: p.get("nm_ente_repassador") for p in todos_programas}
 
     cidades_out = []
     oportunidades_out = []
@@ -122,13 +124,29 @@ def montar_dados() -> dict:
                 "situacao": p.get("situacao_proposta"),
                 "valor": df.valor_proposta(p),
                 "data": p.get("dt_proposta"),
+                "orgao": orgao_por_programa.get(p.get("id_programa")) or "Não identificado",
             })
 
     orgaos = sorted({o["nmEnteRepassador"] for o in oportunidades_out if o["nmEnteRepassador"]})
 
+    # ponytail: "valor do edital aberto" (nr_vlr_global) só vem preenchido em 1 dos 18
+    # programas abertos pra candidatura direta — os outros 17 não publicam esse número.
+    # Por isso isso vira um destaque pontual, não um gráfico com 17 barras vazias.
+    com_valor = [p for p in programas_abertos if (p.get("nr_vlr_global") or 0) > 0]
+    maior_edital_aberto = None
+    if com_valor:
+        p = max(com_valor, key=lambda p: p["nr_vlr_global"])
+        maior_edital_aberto = {
+            "nome": p.get("nm_programa"),
+            "orgao": p.get("nm_ente_repassador"),
+            "valor": p["nr_vlr_global"],
+        }
+
     return {
         "geradoEm": date.today().isoformat(),
         "totalProgramasAbertos": len(programas_abertos),
+        "programasAbertosComValorPublico": len(com_valor),
+        "maiorEditalAberto": maior_edital_aberto,
         "cidades": cidades_out,
         "oportunidades": oportunidades_out,
         "propostas": propostas_out,
@@ -286,6 +304,28 @@ __SVG_PATHS__
     </svg>
   </div>
 
+  <h2 style="margin:0 0 .6rem;font-size:1.05rem">Análise exploratória</h2>
+  <div class="card" id="cardDestaqueValor" style="margin-bottom:1.5rem;display:none">
+    <h3>Valor público em edital aberto</h3>
+    <p id="textoDestaqueValor" style="margin:0"></p>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>Captação histórica por órgão repassador</h3>
+      <div class="chart-scroll" id="wrapOrgao"><div id="innerOrgao"><canvas id="chartOrgao"></canvas></div></div>
+    </div>
+    <div class="card">
+      <h3>Evolução da captação por ano</h3>
+      <div class="chart-scroll" id="wrapAno"><div id="innerAno"><canvas id="chartAno"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:1.5rem">
+    <h3>Distribuição de valor por proposta (o quanto concentra em poucas propostas grandes)</h3>
+    <div class="chart-scroll" id="wrapHistograma"><div id="innerHistograma"><canvas id="chartHistograma"></canvas></div></div>
+  </div>
+
   <div class="card" style="margin-bottom:1.5rem">
     <h3>Oportunidade aberta não usada <span id="contagem" style="color:var(--text);font-weight:400"></span></h3>
     <table>
@@ -329,7 +369,7 @@ function aplicarTema(t){
   document.documentElement.dataset.theme = t;
   try{ localStorage.setItem("captagov_tema", t); }catch(e){}
   document.querySelectorAll("#temas button").forEach(b=>b.classList.toggle("on", b.dataset.tema===t));
-  renderCharts(); renderMapa(); // cores dependem do tema, Canvas/SVG não leem var(--accent) sozinhos
+  renderCharts(); renderMapa(); renderExploratoria(); // cores dependem do tema, Canvas/SVG não leem var(--accent) sozinhos
 }
 document.querySelectorAll("#temas button").forEach(b=>b.onclick=()=>aplicarTema(b.dataset.tema));
 
@@ -551,7 +591,78 @@ function renderHistorico(){
     <td>${fmtBRL(p.valor)}</td><td>${p.data||""}</td></tr>`).join("");
 }
 
-function render(){ renderKpis(); renderCharts(); renderMapa(); renderTabela(); renderHistorico(); }
+function renderDestaqueValor(){
+  const card = document.getElementById("cardDestaqueValor");
+  const m = DATA.maiorEditalAberto;
+  if(!m){ card.style.display="none"; return; }
+  card.style.display = "";
+  document.getElementById("textoDestaqueValor").innerHTML =
+    `Só <b>${DATA.programasAbertosComValorPublico}</b> de <b>${DATA.totalProgramasAbertos}</b> editais abertos ` +
+    `pra candidatura direta publicam o valor global do programa — os outros não declaram esse número. ` +
+    `O maior valor público conhecido hoje: <b>${m.nome}</b> (${m.orgao||"órgão não identificado"}) — ` +
+    `<b>${fmtBRL(m.valor)}</b>.`;
+}
+
+function renderOrgao(){
+  const soma = {};
+  DATA.propostas.forEach(p=>{ soma[p.orgao] = (soma[p.orgao]||0) + p.valor; });
+  const lista = Object.entries(soma).sort((a,b)=>b[1]-a[1]);
+  const wrap = document.getElementById("wrapOrgao"), inner = document.getElementById("innerOrgao");
+  wrap.style.height = "300px";
+  inner.style.height = Math.max(300, lista.length*32) + "px";
+  const muted = corTema("--muted"), accent = corTema("--accent");
+  grafico("chartOrgao",{type:"bar",data:{
+      labels:lista.map(([nome])=>nome.length>40?nome.slice(0,40)+"…":nome),
+      datasets:[{data:lista.map(([,v])=>v),backgroundColor:accent}]},
+    options:{indexAxis:"y",maintainAspectRatio:false,layout:{padding:{right:60}},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:muted,callback:v=>"R$"+(v/1e6).toFixed(0)+"M"}},
+        y:{ticks:{color:muted,autoSkip:false}}}}}, "moeda");
+}
+
+function renderAno(){
+  const soma = {};
+  DATA.propostas.forEach(p=>{
+    const ano = (p.data||"").slice(0,4);
+    if(!ano) return;
+    soma[ano] = (soma[ano]||0) + p.valor;
+  });
+  const anos = Object.keys(soma).sort();
+  const wrap = document.getElementById("wrapAno"), inner = document.getElementById("innerAno");
+  wrap.style.height = "300px"; inner.style.height = "300px";
+  const muted = corTema("--muted"), accent2 = corTema("--accent2");
+  grafico("chartAno",{type:"bar",data:{labels:anos,
+      datasets:[{data:anos.map(a=>soma[a]),backgroundColor:accent2}]},
+    options:{maintainAspectRatio:false,layout:{padding:{top:20}},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:muted}},y:{ticks:{color:muted,callback:v=>"R$"+(v/1e6).toFixed(0)+"M"}}}}}, "moeda");
+}
+
+const FAIXAS_HISTOGRAMA = [
+  {max:50000, label:"até 50 mil"}, {max:200000, label:"50-200 mil"},
+  {max:500000, label:"200-500 mil"}, {max:1000000, label:"500 mil-1 mi"},
+  {max:3000000, label:"1-3 mi"}, {max:10000000, label:"3-10 mi"},
+  {max:Infinity, label:"10 mi+"},
+];
+function renderHistograma(){
+  const contagem = FAIXAS_HISTOGRAMA.map(()=>0);
+  DATA.propostas.forEach(p=>{
+    const i = FAIXAS_HISTOGRAMA.findIndex(f=>p.valor<=f.max);
+    contagem[i===-1?FAIXAS_HISTOGRAMA.length-1:i]++;
+  });
+  const wrap = document.getElementById("wrapHistograma"), inner = document.getElementById("innerHistograma");
+  wrap.style.height = "280px"; inner.style.height = "280px";
+  const muted = corTema("--muted"), accent = corTema("--accent");
+  grafico("chartHistograma",{type:"bar",data:{labels:FAIXAS_HISTOGRAMA.map(f=>f.label),
+      datasets:[{data:contagem,backgroundColor:accent}]},
+    options:{maintainAspectRatio:false,layout:{padding:{top:20}},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:muted}},y:{ticks:{color:muted}}}}}, "numero");
+}
+
+function renderExploratoria(){ renderDestaqueValor(); renderOrgao(); renderAno(); renderHistograma(); }
+
+function render(){ renderKpis(); renderCharts(); renderMapa(); renderExploratoria(); renderTabela(); renderHistorico(); }
 
 document.querySelectorAll("#temas button").forEach(b=>
   b.classList.toggle("on", b.dataset.tema===(document.documentElement.dataset.theme||"dourado")));

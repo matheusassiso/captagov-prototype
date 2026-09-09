@@ -128,15 +128,23 @@ def _cached_get(path: str, params: dict, cache_key: str) -> dict:
     return _cached_get_url(f"{BASE_URL}{path}", params, cache_key)
 
 
-def get_programas_abertos() -> list[dict]:
-    """Programas com situação 'Disponibilizado' e que aceitam candidatura direta
-    (Beneficiário Espontâneo ou Específico) — não depende de indicação de parlamentar.
+def get_todos_programas() -> list[dict]:
+    """Todos os programas cadastrados (abertos, em elaboração, inativos — os 176).
+    Usado pra resolver nome do órgão repassador de proposta antiga cujo programa
+    já não está mais aberto hoje.
 
     ponytail: só existem ~176 programas no total, cabem numa página. Se a API
     crescer muito isso precisa virar paginação de verdade.
     """
     data = _cached_get("/programa", {"tamanho_da_pagina": 200, "pagina": 1}, "programas_p1")
-    programas = data["data"]
+    return data["data"]
+
+
+def get_programas_abertos() -> list[dict]:
+    """Programas com situação 'Disponibilizado' e que aceitam candidatura direta
+    (Beneficiário Espontâneo ou Específico) — não depende de indicação de parlamentar.
+    """
+    programas = get_todos_programas()
     diretos = [
         p for p in programas
         if p.get("situacao_programa") == "Disponibilizado"
